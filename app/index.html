@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>人效计算模型</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>人效计算模型</h1>
+          <p>任务类型：出库拣选 / 出库复核，状态：已完成</p>
+        </div>
+        <div class="status-pill" id="appStatus">本地服务已启动</div>
+      </header>
+
+      <section class="workspace">
+        <aside class="control-panel">
+          <div class="tabs" role="tablist" aria-label="维度">
+            <button class="tab" data-tab="day" type="button">日维度</button>
+            <button class="tab" data-tab="week" type="button">周维度</button>
+            <button class="tab is-active" data-tab="analysis" type="button">拣选分析</button>
+          </div>
+
+          <form id="dayForm" class="form-view">
+            <div class="form-section">
+              <label class="field-label">任务类型</label>
+              <div class="segmented" data-scope="dayTask">
+                <button class="segment is-active" data-task-mode="pick" type="button">出库拣选</button>
+                <button class="segment" data-task-mode="review" type="button">出库复核</button>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <label class="field-label">班次</label>
+              <div class="segmented" data-scope="day">
+                <button class="segment is-active" data-shift="night" type="button">夜班</button>
+                <button class="segment" data-shift="day" type="button">白班</button>
+                <button class="segment" data-shift="custom" type="button">自定义</button>
+              </div>
+            </div>
+
+            <label class="field">
+              <span>归属日期</span>
+              <input id="dayDate" type="date" required>
+            </label>
+
+            <label class="field">
+              <span>总工时</span>
+              <input id="dayWorkHours" type="number" min="0" step="0.01" placeholder="输入总工时">
+            </label>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>开始日期</span>
+                <input id="dayStartDate" type="date" required>
+              </label>
+              <label class="field">
+                <span>开始时间</span>
+                <input id="dayStartTime" type="time" step="60" required>
+              </label>
+              <label class="field">
+                <span>结束日期</span>
+                <input id="dayEndDate" type="date" required>
+              </label>
+              <label class="field">
+                <span>结束时间</span>
+                <input id="dayEndTime" type="time" step="60" required>
+              </label>
+            </div>
+
+            <button id="exportDay" class="primary-action" type="submit">导出日表</button>
+          </form>
+
+          <form id="weekForm" class="form-view">
+            <div class="form-section">
+              <label class="field-label">任务类型</label>
+              <div class="segmented" data-scope="weekTask">
+                <button class="segment is-active" data-task-mode="pick" type="button">出库拣选</button>
+                <button class="segment" data-task-mode="review" type="button">出库复核</button>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <label class="field-label">班次</label>
+              <div class="segmented" data-scope="week">
+                <button class="segment is-active" data-shift="night" type="button">夜班</button>
+                <button class="segment" data-shift="day" type="button">白班</button>
+                <button class="segment" data-shift="custom" type="button">自定义</button>
+              </div>
+            </div>
+
+            <div class="field-grid two">
+              <label class="field">
+                <span>年度</span>
+                <input id="weekYear" type="number" min="2020" max="2100" required>
+              </label>
+              <label class="field">
+                <span>第几周</span>
+                <input id="weekNumber" type="number" min="1" max="54" required>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>总工时</span>
+              <input id="weekWorkHours" type="number" min="0" step="0.01" placeholder="输入总工时">
+            </label>
+
+            <div class="field-grid two">
+              <label class="field">
+                <span>开始时间</span>
+                <input id="weekStartTime" type="time" step="60" required>
+              </label>
+              <label class="field">
+                <span>结束时间</span>
+                <input id="weekEndTime" type="time" step="60" required>
+              </label>
+            </div>
+
+            <button id="exportWeek" class="primary-action" type="submit">导出周表</button>
+          </form>
+
+          <form id="analysisForm" class="form-view is-active">
+            <div id="dropZone" class="drop-zone" role="button" tabindex="0">
+              <strong>拖入 Excel 文件</strong>
+              <span>支持 .xlsx / .xlsx.xlsx</span>
+            </div>
+
+            <input id="analysisFileInput" class="visually-hidden" type="file" accept=".xls,.xlsx,.xlsx.xlsx">
+            <input id="analysisFolderInput" class="visually-hidden" type="file" webkitdirectory multiple>
+
+            <div class="button-row">
+              <button id="pickAnalysisFile" class="secondary-action" type="button">打开文件</button>
+              <button id="pickAnalysisFolder" class="secondary-action" type="button">打开文件夹</button>
+            </div>
+
+            <button id="runAnalysis" class="primary-action" type="submit">分析拣选状态</button>
+          </form>
+        </aside>
+
+        <section class="output-panel">
+          <div class="panel-header">
+            <div>
+              <h2 id="previewTitle">待导出窗口</h2>
+              <p id="previewSubtitle">夜班默认：前一天 17:30 到当天 04:00</p>
+            </div>
+            <button id="refreshPreview" class="secondary-action" type="button">刷新预览</button>
+          </div>
+
+          <div class="metrics" id="metrics">
+            <div class="metric">
+              <span>任务行数</span>
+              <strong>-</strong>
+            </div>
+            <div class="metric">
+              <span>总件数</span>
+              <strong>-</strong>
+            </div>
+            <div class="metric">
+              <span>总工时</span>
+              <strong>-</strong>
+            </div>
+            <div class="metric">
+              <span>人效</span>
+              <strong>-</strong>
+            </div>
+          </div>
+
+          <div id="analysisContent" class="analysis-content"></div>
+
+          <div class="table-wrap">
+            <table>
+              <thead id="previewHead"></thead>
+              <tbody id="previewBody"></tbody>
+            </table>
+          </div>
+
+          <div class="result-area" id="resultArea">
+            <h3>导出结果</h3>
+            <div id="resultText" class="muted">尚未导出</div>
+            <ul id="fileList" class="file-list"></ul>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+name = "realtime-efficiency-license"
+main = "src/worker.js"
+compatibility_date = "2026-06-01"
+
+[vars]
+APP_ID = "realtime-efficiency-dashboard"
+LOCK_ON_DEVICE_MISMATCH = "1"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "realtime-license"
+database_id = "replace-with-your-d1-database-id"

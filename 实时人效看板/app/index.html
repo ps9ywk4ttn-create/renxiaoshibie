@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>出库实时看板</title>
+    <link rel="stylesheet" href="./styles.css?v=1.1.193">
+  </head>
+  <body>
+    <section id="loginScreen" class="login-screen">
+      <div id="userLoginView" class="login-card">
+        <div class="login-brand">
+          <h1>出库实时看板 <span class="app-version">v1.1.193</span></h1>
+          <p id="loginModeText">用户登录</p>
+        </div>
+        <label class="login-field">
+          <span>账号</span>
+          <input id="userAccount" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
+        </label>
+        <label class="login-field">
+          <span>密码</span>
+          <input id="userPassword" type="password" autocomplete="current-password" autofocus>
+        </label>
+        <button id="userLoginButton" class="primary-action" type="button">登录</button>
+        <p id="loginMessage" class="login-message"></p>
+      </div>
+
+      <div id="adminLoginView" class="login-card" hidden>
+        <div class="login-brand">
+          <h1>出库实时看板 <span class="app-version">v1.1.193</span></h1>
+          <p>管理员登录</p>
+        </div>
+        <label class="login-field">
+          <span>管理员密码</span>
+          <input id="adminPassword" type="password" autocomplete="current-password">
+        </label>
+        <p id="adminLoginMessage" class="login-message"></p>
+        <button id="adminLoginButton" class="primary-action" type="button">进入管理员版</button>
+        <button id="backUserLogin" class="secondary-action" type="button">返回用户登录</button>
+      </div>
+    </section>
+
+    <main id="appShell" class="app-shell" hidden>
+      <header class="topbar">
+        <div class="app-title-block">
+          <div class="app-switch" role="tablist" aria-label="工具切换">
+            <button id="realtimeToolTab" class="app-switch-button is-active" type="button" data-tool-view="realtime" aria-selected="true">出库实时看板</button>
+            <button id="inboundToolTab" class="app-switch-button" type="button" data-tool-view="inbound" aria-selected="false">入库实时看板</button>
+            <button id="inboundEfficiencyToolTab" class="app-switch-button" type="button" data-tool-view="inboundEfficiency" aria-selected="false">入库实效看板</button>
+            <button id="exceptionToolTab" class="app-switch-button" type="button" data-tool-view="exception" aria-selected="false">异常处理工具</button>
+            <button id="releaseAssistantToolTab" class="app-switch-button" type="button" data-tool-view="releaseAssistant" aria-selected="false">放单助手</button>
+          </div>
+          <div class="app-title-row">
+            <h1 id="appTitle">出库实时看板 <span class="app-version">v1.1.193</span></h1>
+            <button id="emptyLocationButton" class="secondary-action empty-location-action" type="button">空库位</button>
+          </div>
+          <div id="releaseAssistantTopActions" class="release-assistant-top-actions" hidden></div>
+          <p id="appSubtitle">实时分析拣选任务：已分配 / 拣选中 / 已拣选</p>
+        </div>
+        <div class="topbar-actions">
+          <div id="exceptionShiftControls" class="exception-shift-controls" hidden>
+            <button id="exceptionShiftSettingsButton" class="exception-shift-settings-button" type="button">班次设置</button>
+            <input id="exceptionShiftDate" class="exception-shift-date" type="date" aria-label="异常明细日期">
+            <div class="exception-shift-toggle" role="group" aria-label="异常明细班次">
+              <button class="exception-shift-button" type="button" data-exception-shift-mode="day">白班</button>
+              <button class="exception-shift-button is-active" type="button" data-exception-shift-mode="night">夜班</button>
+            </div>
+          </div>
+          <div id="exceptionSopActions" class="exception-sop-actions" hidden>
+            <a class="secondary-action exception-sop-link" href="./docs/异常处理工具SOP.pdf" target="_blank" rel="noopener">查看 SOP</a>
+            <a class="secondary-action exception-sop-link" href="./docs/异常处理工具SOP.pdf" download="异常处理工具SOP.pdf">下载 SOP</a>
+          </div>
+          <label id="inboundDateControl" class="inbound-date-control" hidden>
+            <span>入库日期</span>
+            <input id="inboundBusinessDate" type="date" aria-label="入库日期">
+          </label>
+          <button id="clearCacheButton" class="secondary-action clear-cache-action admin-only" type="button">清除缓存</button>
+          <div class="role-pill" id="roleBadge">用户版</div>
+          <button id="logoutButton" class="secondary-action logout-action" type="button">退出</button>
+          <div class="status-pill" id="appStatus">本地服务已启动</div>
+        </div>
+      </header>
+
+      <section id="realtimeView" class="tool-view is-active">
+        <section class="workspace">
+          <section class="output-panel">
+            <div class="panel-header">
+              <div>
+                <div class="outbound-analysis-heading">
+                  <h2 id="previewTitle">待导出窗口</h2>
+                  <button id="packingStatusAnalysisTab" class="outbound-analysis-tab" type="button">打包状态分析</button>
+                </div>
+                <p id="previewSubtitle">WMS 创建时间：所选日期 15:00 到次日 03:00</p>
+              </div>
+              <div id="outboundPanelActions" class="panel-actions">
+                <button id="nightRosterButton" class="secondary-action roster-action admin-only" type="button">本班次名单更新</button>
+                <button id="refreshPreview" class="secondary-action" type="button">刷新预览</button>
+                <form id="analysisForm" class="form-view is-active analysis-upload">
+                  <div class="wms-date-row">
+                    <input id="wmsBusinessDate" type="date" aria-label="WMS 日期">
+                    <button id="fetchWmsAnalysis" class="secondary-action" type="button">拉取并分析 WMS</button>
+                    <button id="refreshWmsAnalysis" class="secondary-action" type="button">刷新</button>
+                  </div>
+                  <button id="downloadRawWmsFile" class="secondary-action raw-file-action admin-only" type="button" disabled>下载原始文件</button>
+
+                  <div id="dropZone" class="drop-zone" role="button" tabindex="0">
+                    <strong>拖入 Excel 文件</strong>
+                    <span>支持 .xlsx / .xlsx.xlsx</span>
+                  </div>
+
+                  <input id="analysisFileInput" class="visually-hidden" type="file" accept=".xls,.xlsx,.xlsx.xlsx">
+                  <input id="analysisFolderInput" class="visually-hidden" type="file" webkitdirectory multiple>
+
+                  <div class="button-row">
+                    <button id="pickAnalysisFile" class="secondary-action" type="button">打开文件</button>
+                    <button id="pickAnalysisFolder" class="secondary-action" type="button">打开文件夹</button>
+                  </div>
+
+                  <button id="runAnalysis" class="primary-action" type="submit">分析拣选状态</button>
+                  <div class="export-actions admin-only">
+                    <button id="exportCurrentShift" class="secondary-action" type="button">导出本班次</button>
+                    <button id="exportAll" class="secondary-action" type="button">导出全部</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div id="packingStatusPanel" class="packing-status-panel" hidden>
+              <div id="packingStatusDropZone" class="packing-status-drop-zone" role="button" tabindex="0">
+                <strong>拖入 Excel 文件</strong>
+                <span>只分析已完成复核</span>
+              </div>
+              <input id="packingStatusInput" class="visually-hidden" type="file" accept=".xlsx,.xlsx.xlsx" aria-label="打包状态分析">
+              <div id="packingStatusResult" class="packing-status-result" hidden></div>
+            </div>
+
+            <div class="metrics" id="metrics">
+              <div class="metric">
+                <span>任务行数</span>
+                <strong>-</strong>
+              </div>
+              <div class="metric">
+                <span>总件数</span>
+                <strong>-</strong>
+              </div>
+              <div class="metric">
+                <span>总工时</span>
+                <strong>-</strong>
+              </div>
+              <div class="metric">
+                <span>人效</span>
+                <strong>-</strong>
+              </div>
+            </div>
+
+            <div id="analysisContent" class="analysis-content"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead id="previewHead"></thead>
+                <tbody id="previewBody"></tbody>
+              </table>
+            </div>
+
+            <div class="result-area" id="resultArea">
+              <h3>导出结果</h3>
+              <div id="resultText" class="muted">尚未导出</div>
+              <ul id="fileList" class="file-list"></ul>
+            </div>
+          </section>
+        </section>
+      </section>
+      <section id="inboundView" class="tool-view inbound-view" hidden>
+        <section class="inbound-shell">
+          <div class="inbound-control-row">
+            <div class="inbound-window-card">
+              <span>入库系统时间</span>
+              <strong id="inboundWindowText">请选择入库日期</strong>
+            </div>
+            <button id="fetchInboundTaskList" class="secondary-action" type="button">拉取入库任务列表</button>
+          </div>
+
+          <div class="result-area inbound-result-area" id="inboundResultArea">
+            <h3>导出结果</h3>
+            <div id="inboundResultText" class="muted">尚未拉取</div>
+            <div id="inboundSummaryStats" class="inbound-summary-stats" hidden></div>
+            <div id="inboundPeopleStats" class="inbound-people-stats" hidden></div>
+            <div id="inboundPeopleDetails" class="inbound-people-details" hidden></div>
+            <ul id="inboundFileList" class="file-list"></ul>
+          </div>
+        </section>
+      </section>
+      <section id="inboundEfficiencyView" class="tool-view inbound-efficiency-view" hidden>
+        <section class="inbound-efficiency-shell">
+          <div id="inboundEfficiencyDropZone" class="inbound-efficiency-drop-zone" role="button" tabindex="0">
+            <strong>拖入 Excel 文件</strong>
+            <span>支持 .xlsx / .xlsx.xlsx</span>
+          </div>
+          <div id="inboundEfficiencyAlertPanel" class="inbound-efficiency-alert-panel" hidden></div>
+          <input id="inboundEfficiencyFileInput" class="visually-hidden" type="file" accept=".xlsx,.xlsx.xlsx">
+          <div id="inboundEfficiencyFileResult" class="inbound-efficiency-file-result" hidden></div>
+        </section>
+      </section>
+      <section id="emptyLocationView" class="tool-view empty-location-view" hidden>
+        <section id="emptyLocationShell" class="empty-location-shell" aria-label="空库位">
+          <button id="emptyLocationBackButton" class="empty-location-back-button" type="button" hidden>返回</button>
+          <button id="emptyLocationResultExportButton" class="empty-location-result-export-button" type="button" hidden>导出</button>
+          <div class="empty-location-actions" aria-label="空库位操作">
+            <button id="emptyLocationQueryButton" class="empty-location-action-button" type="button">查询</button>
+            <button id="emptyLocationExportButton" class="empty-location-action-button" type="button">导出</button>
+            <button id="emptyLocationZoneButton" class="empty-location-action-button empty-location-zone-button" type="button">库区更新</button>
+          </div>
+          <div id="emptyLocationZoneList" class="empty-location-zone-list"></div>
+          <div id="emptyLocationResult" class="empty-location-result" hidden></div>
+        </section>
+      </section>
+      <section id="exceptionView" class="tool-view exception-view" hidden>
+        <div class="exception-shell">
+          <div class="exception-actions" aria-label="异常处理">
+            <div class="exception-query">
+              <button id="waybillQueryButton" class="exception-action" type="button">面单查询</button>
+              <input id="waybillQueryInput" type="text" placeholder="输入面单号">
+            </div>
+            <div class="exception-query">
+              <button id="inventoryQueryButton" class="exception-action" type="button">库存查询</button>
+              <input id="inventoryQueryInput" type="text" placeholder="输入 SKU / 条码" autocomplete="off" autocorrect="off" autocapitalize="characters" inputmode="latin" spellcheck="false">
+            </div>
+            <div class="exception-query">
+              <button id="locationQueryButton" class="exception-action" type="button">库位查询</button>
+              <input id="locationQueryInput" type="text" placeholder="输入库位" maxlength="14" autocomplete="off" autocorrect="off" autocapitalize="characters" inputmode="latin" spellcheck="false">
+            </div>
+          </div>
+          <div class="exception-toolbar">
+            <div class="exception-fixed-actions" aria-label="库存异常处理动作">
+              <button class="exception-fixed-action" type="button">异位拣选</button>
+              <button class="exception-fixed-action" type="button">拣选无货</button>
+              <button class="exception-fixed-action" type="button">属性变更</button>
+            </div>
+            <div class="exception-toolbar-actions">
+              <button id="exceptionExportButton" class="secondary-action exception-export-button" type="button">导出</button>
+              <button id="exceptionResetButton" class="secondary-action exception-reset-button" type="button">重置</button>
+            </div>
+          </div>
+          <div id="exceptionResult" class="exception-result" hidden></div>
+        </div>
+      </section>
+      <section id="releaseAssistantView" class="tool-view release-assistant-view" hidden>
+        <div id="releaseAssistantFloatingActions" class="release-assistant-floating-actions" hidden>
+          <button id="releaseAssistantSelectedCount" type="button">已选 0 条</button>
+          <button id="releaseAssistantCancelCopy" class="release-assistant-cancel-copy" type="button" hidden>取消全部选择</button>
+          <button id="releaseAssistantResetSelection" type="button">重置</button>
+          <button id="releaseAssistantCopySelected" type="button">选择</button>
+        </div>
+        <div id="releaseAssistantOrderStats" class="release-assistant-order-stats" hidden></div>
+        <div id="releaseAssistantZoneChart" class="release-assistant-zone-chart" hidden></div>
+        <div id="releaseAssistantZoneSummary" class="release-assistant-zone-summary" hidden></div>
+        <div class="release-assistant-shell">
+          <section class="release-assistant-panel">
+            <div id="releaseAssistantDropZone" class="release-assistant-drop-zone" role="button" tabindex="0">
+              <strong>拖入 Excel 文件</strong>
+              <span>按 X 列排序，只保留 A 列和 X 列</span>
+            </div>
+            <input id="releaseAssistantFileInput" class="visually-hidden" type="file" accept=".xlsx,.xlsx.xlsx">
+            <div id="releaseAssistantResult" class="release-assistant-result" hidden></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <div id="qrPreviewModal" class="qr-preview-layer" hidden>
+      <div id="qrPreviewCard" class="qr-preview-card" role="dialog" aria-modal="true" aria-label="二维码预览">
+        <button id="qrPreviewClose" class="qr-preview-close" type="button" aria-label="关闭">×</button>
+        <button id="qrPreviewPrint" class="qr-preview-print" type="button">打印</button>
+        <div id="qrPreviewContent"></div>
+      </div>
+    </div>
+
+    <div id="exceptionShiftSettingsModal" class="modal-layer" hidden>
+      <div class="modal-card exception-shift-settings-card">
+        <div class="modal-head">
+          <div>
+            <h3>班次设置</h3>
+            <p>设置后，横版明细按这里的时间范围过滤</p>
+          </div>
+        </div>
+        <div class="exception-shift-settings-body">
+          <section class="exception-shift-settings-section">
+            <strong>白班</strong>
+            <label>
+              <span>开始时间</span>
+              <input id="exceptionDayStartTime" type="time">
+            </label>
+            <label>
+              <span>结束时间</span>
+              <input id="exceptionDayEndTime" type="time">
+            </label>
+          </section>
+          <section class="exception-shift-settings-section">
+            <strong>夜班</strong>
+            <label>
+              <span>开始时间</span>
+              <input id="exceptionNightStartTime" type="time">
+            </label>
+            <label>
+              <span>结束时间</span>
+              <input id="exceptionNightEndTime" type="time">
+            </label>
+          </section>
+        </div>
+        <div class="modal-actions">
+          <button id="exceptionShiftSettingsCancel" class="secondary-action" type="button">取消</button>
+          <button id="exceptionShiftSettingsSave" class="primary-action" type="button">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="exceptionDetailModal" class="modal-layer exception-detail-layer" hidden>
+      <div class="modal-card exception-detail-card">
+        <div class="exception-detail-layout">
+          <aside class="exception-detail-modal-actions">
+            <button id="exceptionDetailExport" class="secondary-action" type="button">导出</button>
+            <button id="exceptionDetailClose" class="secondary-action" type="button">关闭</button>
+          </aside>
+          <section class="exception-detail-main">
+            <div class="exception-detail-modal-head">
+              <h3 id="exceptionDetailTitle">明细</h3>
+              <p id="exceptionDetailMeta"></p>
+            </div>
+            <div id="exceptionDetailContent" class="exception-detail-modal-content"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="nightRosterModal" class="modal-layer" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h3>本班次名单更新</h3>
+            <p id="nightRosterCount">0 人</p>
+          </div>
+          <button id="nightRosterClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <textarea id="nightRosterText" spellcheck="false"></textarea>
+        <div class="modal-actions">
+          <button id="nightRosterAddLine" class="secondary-action" type="button">新增空行</button>
+          <button id="nightRosterSaveClose" class="primary-action" type="button">关闭保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="emptyLocationZoneModal" class="modal-layer" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h3>库区更新</h3>
+            <p id="emptyLocationZoneCount">0 个</p>
+          </div>
+          <button id="emptyLocationZoneClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <textarea id="emptyLocationZoneText" spellcheck="false"></textarea>
+        <div class="modal-actions">
+          <button id="emptyLocationZoneAddLine" class="secondary-action" type="button">新增空行</button>
+          <button id="emptyLocationZoneSaveClose" class="primary-action" type="button">关闭保存</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js?v=1.1.193"></script>
+  </body>
+</html>

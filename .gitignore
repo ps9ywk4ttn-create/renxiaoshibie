@@ -1,0 +1,51 @@
+.DS_Store
+*.log
+*.tmp
+.tmp_*
+**/.tmp_*
+
+# Local runtime links and installed dependencies
+node_modules
+node_modules/
+node_modules *
+**/node_modules
+**/node_modules/
+**/node_modules *
+
+# Local secrets and deployment-specific settings
+.env
+*.env
+.license.env
+**/.license.env
+**/.license-admin.env
+!*.env.example
+!**/*.env.example
+实时人效看板/license-worker/wrangler.toml
+
+# Generated business data and exports
+*.xls
+*.xlsx
+*.xlsx.xlsx
+*.csv
+*.png
+YQN夜班出库数据/
+YQN夜班出库复核数据/
+导入分析文件/
+实时人效看板/导入分析文件/
+实时人效看板/导出文件/
+实时人效看板/入库实时看板导入/
+实时人效看板/入库实效看板导入/
+实时人效看板/打包状态分析导入/
+实时人效看板/放单助手导入/
+实时人效看板/空库位导出/
+实时人效看板/day-1人效/每日原始文件/
+实时人效看板/day-1人效/*.json
+实时人效看板/day-1人效/*.xlsx
+实时人效看板/拣选数量走势汇总/*.json
+实时人效看板/拣选数量走势汇总/*.xlsx
+实时人效看板/异常处理总表.*
+实时人效看板/night_shift_roster.json
+实时人效看板/empty_location_zones.json
+
+# Generated macOS app bundle
+*.app/
