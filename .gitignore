@@ -49,3 +49,6 @@ YQN夜班出库复核数据/
 
 # Generated macOS app bundle
 *.app/
+
+# Generated release packages
+dist/
