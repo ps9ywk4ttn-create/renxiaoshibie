@@ -882,7 +882,6 @@ function resolveApiUrl(path) {
   if (!url.startsWith("/")) return url;
   const configured = configuredLocalApiBase();
   if (configured) return `${configured}${url}`;
-  if (isHostedWebPage() && url.startsWith("/api/")) return `${defaultLocalApiBase()}${url}`;
   return url;
 }
 
@@ -1130,10 +1129,11 @@ async function api(path, body, options = {}) {
         || `请求超过 ${Math.ceil(timeoutMs / 1000)} 秒，已停止`,
       );
     }
+    if (error?.status) throw error;
     const fallbackData = staticWebFallbackData(path, body);
     if (fallbackData) return fallbackData;
     if (isHostedWebPage() && String(path || "").startsWith("/api/")) {
-      throw new Error("网页版已打开。这个功能需要先在当前电脑启动本机 WMS 服务。");
+      throw new Error("网页版接口暂时不可用，请刷新页面后重试");
     }
     throw error;
   } finally {
