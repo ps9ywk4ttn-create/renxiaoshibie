@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>出库实时看板</title>
+    <link rel="stylesheet" href="./styles.css?v=1.1.384">
+  </head>
+  <body>
+    <section id="loginScreen" class="login-screen">
+      <button id="loginLanguageToggle" class="secondary-action language-toggle login-language-toggle" type="button" aria-label="Switch language">English</button>
+      <div id="userLoginView" class="login-card">
+        <div class="login-brand">
+          <h1>出库实时看板 <span class="app-version">v1.1.392</span></h1>
+          <p id="loginModeText">用户登录</p>
+        </div>
+        <label class="login-field">
+          <span>账号</span>
+          <input id="userAccount" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
+        </label>
+        <label class="login-field">
+          <span>密码</span>
+          <input id="userPassword" type="password" autocomplete="current-password" autofocus>
+        </label>
+        <button id="userLoginButton" class="primary-action" type="button">登录</button>
+        <p id="loginMessage" class="login-message"></p>
+      </div>
+
+      <div id="adminLoginView" class="login-card" hidden>
+        <div class="login-brand">
+          <h1>出库实时看板 <span class="app-version">v1.1.392</span></h1>
+          <p>管理员登录</p>
+        </div>
+        <label class="login-field">
+          <span>管理员密码</span>
+          <input id="adminPassword" type="password" autocomplete="current-password">
+        </label>
+        <p id="adminLoginMessage" class="login-message"></p>
+        <button id="adminLoginButton" class="primary-action" type="button">进入管理员版</button>
+        <button id="backUserLogin" class="secondary-action" type="button">返回用户登录</button>
+      </div>
+    </section>
+
+    <main id="appShell" class="app-shell" hidden>
+      <header class="topbar">
+        <div class="app-title-block">
+          <div class="app-switch" role="tablist" aria-label="工具切换">
+            <button id="realtimeToolTab" class="app-switch-button is-active" type="button" data-tool-view="realtime" aria-selected="true">出库实时看板</button>
+            <button id="inboundToolTab" class="app-switch-button" type="button" data-tool-view="inbound" aria-selected="false">入库实时看板</button>
+            <button id="inboundEfficiencyToolTab" class="app-switch-button" type="button" data-tool-view="inboundEfficiency" aria-selected="false">入库实效看板</button>
+            <button id="exceptionToolTab" class="app-switch-button" type="button" data-tool-view="exception" aria-selected="false">异常处理工具</button>
+            <button id="releaseAssistantToolTab" class="app-switch-button" type="button" data-tool-view="releaseAssistant" aria-selected="false">放单助手</button>
+            <button id="outboundEfficiencyToolTab" class="app-switch-button" type="button" data-tool-view="outboundEfficiency" aria-selected="false">出库效率看板</button>
+          </div>
+          <div class="app-title-row">
+            <h1 id="appTitle">出库实时看板 <span class="app-version">v1.1.392</span></h1>
+            <button id="emptyLocationButton" class="secondary-action empty-location-action" type="button">空库位</button>
+          </div>
+          <div id="releaseAssistantTopActions" class="release-assistant-top-actions" hidden></div>
+          <p id="appSubtitle">实时分析拣选任务：已分配 / 拣选中 / 已拣选</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="desktopWmsLoginButton" class="secondary-action" type="button" hidden>打开 WMS 登录窗口</button>
+          <button id="languageToggle" class="secondary-action language-toggle" type="button" aria-label="Switch language">English</button>
+          <div id="exceptionShiftControls" class="exception-shift-controls" hidden>
+            <button id="exceptionShiftSettingsButton" class="exception-shift-settings-button" type="button">班次设置</button>
+            <input id="exceptionShiftDate" class="exception-shift-date" type="date" aria-label="异常明细日期">
+            <div class="exception-shift-toggle" role="group" aria-label="异常明细班次">
+              <button class="exception-shift-button" type="button" data-exception-shift-mode="day">白班</button>
+              <button class="exception-shift-button is-active" type="button" data-exception-shift-mode="night">夜班</button>
+            </div>
+          </div>
+          <div id="exceptionSopActions" class="exception-sop-actions" hidden></div>
+          <label id="inboundDateControl" class="inbound-date-control" hidden>
+            <span>入库日期</span>
+            <input id="inboundBusinessDate" type="date" aria-label="入库日期">
+          </label>
+          <button id="clearCacheButton" class="secondary-action clear-cache-action admin-only" type="button">清除缓存</button>
+          <div class="role-pill" id="roleBadge">用户版</div>
+          <button id="logoutButton" class="secondary-action logout-action" type="button">退出</button>
+          <div class="status-pill" id="appStatus">本地服务已启动</div>
+        </div>
+      </header>
+
+      <section id="realtimeView" class="tool-view is-active">
+        <div class="realtime-fixed-actions" aria-label="实时看板快捷操作">
+          <button id="releaseAssistantQuickButton" class="secondary-action realtime-fixed-action realtime-release-action" type="button">放单</button>
+          <button id="refreshWmsAnalysis" class="secondary-action realtime-fixed-action" type="button">刷新</button>
+          <button id="scrollTopButton" class="secondary-action realtime-fixed-action" type="button" title="回到顶部">Top</button>
+          <button id="scrollBottomButton" class="secondary-action realtime-fixed-action" type="button" title="前往底部">Bottom</button>
+          <button class="secondary-action realtime-fixed-action wms-account-create-shortcut" type="button" data-wms-account-create>创建账号</button>
+          <button class="secondary-action realtime-fixed-action barcode-generate-shortcut" type="button" data-barcode-generate>生成条码</button>
+        </div>
+        <section class="workspace">
+          <section class="output-panel">
+            <div class="panel-header">
+              <div>
+                <div class="outbound-analysis-heading">
+                  <h2 id="previewTitle">待导出窗口</h2>
+                  <button id="packingStatusAnalysisTab" class="outbound-analysis-tab" type="button">打包状态分析</button>
+                </div>
+                <p id="previewSubtitle">WMS 创建时间：所选日期 15:00 到次日 03:00</p>
+              </div>
+              <div id="outboundPanelActions" class="panel-actions">
+                <button id="nightRosterButton" class="secondary-action roster-action admin-only" type="button">本班次名单更新</button>
+                <button id="refreshPreview" class="secondary-action" type="button">刷新预览</button>
+                <form id="analysisForm" class="form-view is-active analysis-upload">
+                  <div class="wms-date-row">
+                    <input id="wmsBusinessDate" type="date" aria-label="WMS 日期">
+                    <button id="fetchWmsAnalysis" class="secondary-action" type="button">拉取并分析 WMS</button>
+                  </div>
+                  <button id="downloadRawWmsFile" class="secondary-action raw-file-action admin-only" type="button" disabled>下载原始文件</button>
+
+                  <div id="dropZone" class="drop-zone" role="button" tabindex="0">
+                    <strong>拖入 Excel 文件</strong>
+                    <span>支持 .xlsx / .xlsx.xlsx</span>
+                  </div>
+
+                  <input id="analysisFileInput" class="visually-hidden" type="file" accept=".xls,.xlsx,.xlsx.xlsx">
+                  <input id="analysisFolderInput" class="visually-hidden" type="file" webkitdirectory multiple>
+
+                  <div class="button-row">
+                    <button id="pickAnalysisFile" class="secondary-action" type="button">打开文件</button>
+                    <button id="pickAnalysisFolder" class="secondary-action" type="button">打开文件夹</button>
+                  </div>
+
+                  <button id="runAnalysis" class="primary-action" type="submit">分析拣选状态</button>
+                  <div class="export-actions admin-only">
+                    <button id="exportCurrentShift" class="secondary-action" type="button">导出本班次</button>
+                    <button id="exportAll" class="secondary-action" type="button">导出全部</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div id="packingStatusPanel" class="packing-status-panel" hidden>
+              <div id="packingStatusDropZone" class="packing-status-drop-zone" role="button" tabindex="0">
+                <strong>拖入 Excel 文件</strong>
+                <span>只分析已完成复核</span>
+              </div>
+              <input id="packingStatusInput" class="visually-hidden" type="file" accept=".xlsx,.xlsx.xlsx" aria-label="打包状态分析">
+              <div id="packingStatusResult" class="packing-status-result" hidden></div>
+            </div>
+
+            <div class="metrics" id="metrics">
+              <div class="metric">
+                <span>任务行数</span>
+                <strong>-</strong>
+              </div>
+              <div class="metric">
+                <span>总件数</span>
+                <strong>-</strong>
+              </div>
+              <div class="metric">
+                <span>总工时</span>
+                <strong>-</strong>
+              </div>
+              <div class="metric">
+                <span>人效</span>
+                <strong>-</strong>
+              </div>
+            </div>
+
+            <div id="analysisContent" class="analysis-content"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead id="previewHead"></thead>
+                <tbody id="previewBody"></tbody>
+              </table>
+            </div>
+
+            <div class="result-area" id="resultArea">
+              <h3>导出结果</h3>
+              <div id="resultText" class="muted">尚未导出</div>
+              <ul id="fileList" class="file-list"></ul>
+            </div>
+
+            <div id="efficiencyContent" class="analysis-content" hidden></div>
+          </section>
+        </section>
+      </section>
+      <section id="inboundView" class="tool-view inbound-view" hidden>
+        <section class="inbound-shell">
+          <div class="inbound-control-row">
+            <div class="inbound-window-card">
+              <span>入库系统时间</span>
+              <strong id="inboundWindowText">请选择入库日期</strong>
+            </div>
+            <button id="fetchInboundTaskList" class="secondary-action" type="button">拉取入库任务列表</button>
+          </div>
+
+          <div class="result-area inbound-result-area" id="inboundResultArea">
+            <h3>导出结果</h3>
+            <div id="inboundResultText" class="muted">尚未拉取</div>
+            <div id="inboundSummaryStats" class="inbound-summary-stats" hidden></div>
+            <div id="inboundPeopleStats" class="inbound-people-stats" hidden></div>
+            <div id="inboundPeopleDetails" class="inbound-people-details" hidden></div>
+            <ul id="inboundFileList" class="file-list"></ul>
+          </div>
+        </section>
+      </section>
+      <section id="inboundEfficiencyView" class="tool-view inbound-efficiency-view" hidden>
+        <section class="inbound-efficiency-shell">
+          <div id="inboundEfficiencyDropZone" class="inbound-efficiency-drop-zone" role="button" tabindex="0">
+            <strong>拖入 Excel 文件</strong>
+            <span>支持 .xlsx / .xlsx.xlsx</span>
+          </div>
+          <div id="inboundEfficiencyAlertPanel" class="inbound-efficiency-alert-panel" hidden></div>
+          <input id="inboundEfficiencyFileInput" class="visually-hidden" type="file" accept=".xlsx,.xlsx.xlsx">
+          <div id="inboundEfficiencyFileResult" class="inbound-efficiency-file-result" hidden></div>
+        </section>
+      </section>
+      <section id="emptyLocationView" class="tool-view empty-location-view" hidden>
+        <section id="emptyLocationShell" class="empty-location-shell" aria-label="空库位">
+          <button id="emptyLocationBackButton" class="empty-location-back-button" type="button" hidden>返回</button>
+          <button id="emptyLocationResultExportButton" class="empty-location-result-export-button" type="button" hidden>导出</button>
+          <div class="empty-location-actions" aria-label="空库位操作">
+            <button id="emptyLocationQueryButton" class="empty-location-action-button" type="button">查询</button>
+            <button id="emptyLocationExportButton" class="empty-location-action-button" type="button">导出</button>
+            <button id="emptyLocationZoneButton" class="empty-location-action-button empty-location-zone-button" type="button">库区更新</button>
+          </div>
+          <div id="emptyLocationZoneList" class="empty-location-zone-list"></div>
+          <div id="emptyLocationResult" class="empty-location-result" hidden></div>
+        </section>
+      </section>
+      <section id="exceptionView" class="tool-view exception-view" hidden>
+        <div class="realtime-fixed-actions exception-account-fixed-actions" aria-label="异常处理快捷操作">
+          <button id="shortPickScanButton" class="secondary-action realtime-fixed-action" type="button">短捡扫码</button>
+          <button class="secondary-action realtime-fixed-action wms-account-create-shortcut" type="button" data-wms-account-create>创建账号</button>
+          <button class="secondary-action realtime-fixed-action barcode-generate-shortcut" type="button" data-barcode-generate>生成条码</button>
+        </div>
+        <div class="exception-shell">
+          <div class="exception-actions" aria-label="异常处理">
+            <div class="exception-query">
+              <button id="waybillQueryButton" class="exception-action" type="button">面单查询</button>
+              <input id="waybillQueryInput" type="text" placeholder="输入面单号">
+            </div>
+            <div class="exception-query">
+              <button id="inventoryQueryButton" class="exception-action" type="button">库存查询</button>
+              <input id="inventoryQueryInput" type="text" placeholder="输入 SKU / 条码" autocomplete="off" autocorrect="off" autocapitalize="characters" inputmode="latin" spellcheck="false">
+            </div>
+            <div class="exception-query">
+              <button id="locationQueryButton" class="exception-action" type="button">库位查询</button>
+              <input id="locationQueryInput" type="text" placeholder="输入库位" autocomplete="off" autocorrect="off" autocapitalize="characters" inputmode="latin" spellcheck="false">
+            </div>
+          </div>
+          <div class="exception-toolbar">
+            <div class="exception-fixed-actions" aria-label="库存异常处理动作">
+              <button class="exception-fixed-action" type="button" data-exception-action="displaced-pick">异位拣选</button>
+              <button class="exception-fixed-action" type="button" data-exception-action="out-of-stock">拣选无货</button>
+              <button class="exception-fixed-action" type="button" data-exception-action="attribute-change">属性变更</button>
+            </div>
+            <div class="exception-toolbar-actions">
+              <button id="exceptionExportButton" class="secondary-action exception-export-button" type="button">导出</button>
+              <button id="exceptionResetButton" class="secondary-action exception-reset-button" type="button">重置</button>
+            </div>
+          </div>
+          <div id="exceptionResult" class="exception-result" hidden></div>
+        </div>
+      </section>
+      <section id="releaseAssistantView" class="tool-view release-assistant-view" hidden>
+        <nav class="release-assistant-tool-shortcuts is-main" aria-label="放单助手工具跳转">
+          <button class="secondary-action" type="button" data-release-assistant-tool-shortcut="realtime">出库看板</button>
+          <button class="secondary-action" type="button" data-release-assistant-tool-shortcut="exception">异常处理</button>
+          <button class="secondary-action wms-account-create-shortcut" type="button" data-wms-account-create>创建账号</button>
+          <button class="secondary-action barcode-generate-shortcut" type="button" data-barcode-generate>生成条码</button>
+        </nav>
+        <div id="releaseAssistantFloatingActions" class="release-assistant-floating-actions" hidden>
+          <button id="releaseAssistantSelectedCount" type="button">已选 0 条</button>
+          <button id="releaseAssistantCancelCopy" class="release-assistant-cancel-copy" type="button" hidden>取消全部选择</button>
+          <button id="releaseAssistantResetSelection" type="button">重置</button>
+          <button id="releaseAssistantCopySelected" type="button">选择</button>
+        </div>
+        <div id="releaseAssistantOrderStats" class="release-assistant-order-stats" hidden></div>
+        <div id="releaseAssistantZoneChart" class="release-assistant-zone-chart" hidden></div>
+        <div id="releaseAssistantZoneSummary" class="release-assistant-zone-summary" hidden></div>
+        <div class="release-assistant-shell">
+          <section class="release-assistant-panel">
+            <div id="releaseAssistantDropZone" class="release-assistant-drop-zone" role="button" tabindex="0">
+              <strong>拖入 Excel 文件</strong>
+              <span>按 X 列排序，只保留 A 列和 X 列</span>
+            </div>
+            <input id="releaseAssistantFileInput" class="visually-hidden" type="file" accept=".xlsx,.xlsx.xlsx">
+            <div
+              id="releaseAssistantPeopleStatus"
+              class="release-assistant-people-status-host"
+              aria-live="polite"
+            ></div>
+            <div id="releaseAssistantWaveZoneButtons" class="release-assistant-wave-zone-buttons" aria-label="波次汇总库区信息下拉内容">
+              <div class="release-assistant-wave-zone-toolbar">
+                <strong>WMS 库区</strong>
+                <div class="release-assistant-wave-zone-legend" aria-label="库区颜色说明">
+                  <span><i class="is-picking"></i>拣选中普通单件</span>
+                  <span><i class="is-assigned"></i>已分配普通单件</span>
+                  <span><i class="is-both"></i>两种状态同时存在</span>
+                </div>
+                <button id="releaseAssistantWaveZoneRefresh" type="button">刷新</button>
+              </div>
+              <div id="releaseAssistantWaveOperatorList" class="release-assistant-wave-zone-group">
+                <span>筛选条件</span>
+                <div class="release-assistant-wave-filter-options"><em>正在读取…</em></div>
+                <div class="release-assistant-wave-command-buttons">
+                  <button id="releaseAssistantWaveQuery" class="release-assistant-wave-query-button" type="button">查询</button>
+                  <button id="releaseAssistantWaveReset" class="release-assistant-wave-reset-button" type="button">重置</button>
+                  <button id="releaseAssistantWaveManage" class="release-assistant-wave-manage-button" type="button">波次管理</button>
+                  <button id="releaseAssistantCancelPickOrders" class="release-assistant-wave-cancel-pick-button" type="button">拣选单管理</button>
+                </div>
+              </div>
+              <div id="releaseAssistantWaveZoneList" class="release-assistant-wave-zone-group is-zone-list" aria-live="polite">
+                <span>库区</span>
+                <div class="release-assistant-wave-zone-options"><em>正在从 WMS 接口读取…</em></div>
+              </div>
+            </div>
+            <div id="releaseAssistantReleaseModeButtons" class="release-assistant-release-mode-buttons" aria-label="放单模式">
+              <button type="button" data-release-mode="multi" aria-pressed="false">Multi</button>
+              <button type="button" data-release-mode="single" aria-pressed="false">Single</button>
+              <button type="button" data-release-mode="batch" aria-pressed="false">Batch</button>
+              <button type="button" data-release-mode="multi-skin" aria-pressed="false">Multi自动化</button>
+            </div>
+            <div id="releaseAssistantWaveResult" class="release-assistant-wave-result" aria-live="polite" hidden></div>
+            <div id="releaseAssistantResult" class="release-assistant-result" hidden></div>
+          </section>
+        </div>
+      </section>
+      <section id="outboundEfficiencyView" class="tool-view outbound-efficiency-view" hidden>
+        <section class="workspace">
+          <section class="output-panel">
+            <div class="panel-header">
+              <div>
+                <h2>出库效率看板</h2>
+                <p class="muted">看板内容待建设</p>
+              </div>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <div id="releaseAssistantWaveManageModal" class="modal-layer release-assistant-wave-manage-layer" hidden>
+      <div class="modal-card release-assistant-wave-manage-card" role="dialog" aria-modal="true" aria-labelledby="releaseAssistantWaveManageTitle">
+        <div class="modal-head release-assistant-wave-manage-head">
+          <div>
+            <h3 id="releaseAssistantWaveManageTitle">波次管理</h3>
+            <p id="releaseAssistantWaveManageMeta">正在从 WMS 接口读取已创建波次…</p>
+          </div>
+          <button id="releaseAssistantWaveManageClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="release-assistant-wave-manage-body">
+          <div class="release-assistant-wave-manage-toolbar">
+            <strong id="releaseAssistantWaveManageSelectedCount">已选择 0 条</strong>
+            <div>
+              <button id="releaseAssistantWaveManageConfirmAll" class="release-assistant-wave-manage-confirm-all" type="button" disabled>批量确认</button>
+              <button id="releaseAssistantWaveManageCancelAll" class="release-assistant-wave-manage-cancel-all" type="button" disabled>批量取消</button>
+              <button id="releaseAssistantWaveManageRefresh" class="secondary-action" type="button">刷新</button>
+            </div>
+          </div>
+          <div id="releaseAssistantWaveManageNotice" class="release-assistant-wave-manage-notice" hidden></div>
+          <div id="releaseAssistantWaveManageContent" class="release-assistant-wave-manage-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="releaseAssistantCancelPickModal" class="modal-layer release-assistant-cancel-pick-layer" hidden>
+      <div class="modal-card release-assistant-cancel-pick-card" role="dialog" aria-modal="true" aria-labelledby="releaseAssistantCancelPickTitle">
+        <div class="modal-head release-assistant-cancel-pick-head">
+          <div>
+            <h3 id="releaseAssistantCancelPickTitle">拣选单管理</h3>
+            <p id="releaseAssistantCancelPickMeta">正在从 WMS 接口读取可管理拣选单…</p>
+          </div>
+          <button id="releaseAssistantCancelPickClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="release-assistant-cancel-pick-body">
+          <div id="releaseAssistantCancelPickStickyControls" class="release-assistant-cancel-pick-sticky-controls">
+            <div class="release-assistant-cancel-pick-toolbar">
+              <div class="release-assistant-cancel-pick-selection-controls">
+                <strong id="releaseAssistantCancelPickSelectedCount">已选择 0 条</strong>
+                <button id="releaseAssistantCancelPickClearSelection" class="release-assistant-cancel-pick-clear-selection" type="button" disabled>取消选择</button>
+              </div>
+              <div
+                id="releaseAssistantCancelPickStatusSummary"
+                class="release-assistant-cancel-pick-status-summary"
+                aria-label="WMS 拣选流程状态"
+                aria-live="polite"
+              ></div>
+            </div>
+            <div class="release-assistant-cancel-pick-people-status-shell">
+              <div
+                id="releaseAssistantCancelPickPeopleStatus"
+                class="release-assistant-people-status-host is-pick-modal"
+                aria-live="polite"
+              ></div>
+              <button id="releaseAssistantCancelPickRefresh" class="secondary-action" type="button">刷新状态</button>
+            </div>
+            <div class="release-assistant-cancel-pick-collapse-row">
+              <button
+                id="releaseAssistantCancelPickCollapse"
+                type="button"
+                aria-expanded="true"
+                title="折叠上方状态区域"
+              >折叠 ▲</button>
+            </div>
+            <div id="releaseAssistantCancelPickNotice" class="release-assistant-cancel-pick-notice" hidden>
+              <span id="releaseAssistantCancelPickNoticeText"></span>
+              <div class="release-assistant-pick-priority-actions" aria-label="拣选优先级">
+                <button class="is-very-urgent" type="button" data-pick-order-priority="300" disabled>非常紧急</button>
+                <button class="is-urgent" type="button" data-pick-order-priority="200" disabled>紧急</button>
+                <button class="is-normal" type="button" data-pick-order-priority="100" disabled>普通</button>
+              </div>
+              <div class="release-assistant-cancel-pick-toolbar-actions">
+                <button id="releaseAssistantAssignNextShiftPicker" class="release-assistant-assign-next-shift-picker" type="button" disabled>指定下个班次拣选人</button>
+                <button id="releaseAssistantAssignPicker" class="release-assistant-assign-picker" type="button" disabled>指定拣选人</button>
+                <button id="releaseAssistantCancelAssignPicker" class="release-assistant-cancel-assign-picker" type="button" hidden>取消分配</button>
+                <button id="releaseAssistantCancelPickAll" class="release-assistant-cancel-pick-all" type="button" disabled>全部取消</button>
+                <button id="releaseAssistantCancelPickMatrixRefresh" class="secondary-action" type="button">矩阵刷新</button>
+              </div>
+            </div>
+          </div>
+          <div id="releaseAssistantCancelPickContent" class="release-assistant-cancel-pick-content"></div>
+        </div>
+      </div>
+      <nav class="release-assistant-tool-shortcuts is-pick-modal" aria-label="拣选单管理工具跳转">
+        <button class="secondary-action" type="button" data-release-assistant-tool-shortcut="realtime">出库看板</button>
+        <button class="secondary-action" type="button" data-release-assistant-tool-shortcut="exception">异常处理</button>
+        <button class="secondary-action wms-account-create-shortcut" type="button" data-wms-account-create>创建账号</button>
+        <button class="secondary-action barcode-generate-shortcut" type="button" data-barcode-generate>生成条码</button>
+      </nav>
+    </div>
+
+    <div id="wmsAccountModal" class="modal-layer wms-account-layer" hidden>
+      <div class="modal-card wms-account-card" role="dialog" aria-modal="true" aria-labelledby="wmsAccountTitle">
+        <div class="modal-head">
+          <div>
+            <h3 id="wmsAccountTitle">创建账号</h3>
+            <p>创建一般账号，设置并验证固定密码 Aa123456 后打印</p>
+          </div>
+          <div class="wms-account-head-actions">
+            <button id="wmsAccountRecordsOpen" class="secondary-action" type="button">查看记录</button>
+            <button id="wmsAccountClose" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+        </div>
+        <form id="wmsAccountForm" class="wms-account-form">
+          <label class="wms-account-field">
+            <span>用户账号</span>
+            <input id="wmsAccountUserAccount" type="text" maxlength="50" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="请输入用户账号">
+          </label>
+          <label class="wms-account-field">
+            <span>用户名称</span>
+            <input id="wmsAccountUserName" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="请输入用户名称">
+          </label>
+          <fieldset class="wms-account-role-fieldset">
+            <legend>用户角色（可多选）</legend>
+            <div id="wmsAccountRoleList" class="wms-account-role-list" aria-live="polite">
+              <p>正在从 WMS 接口读取角色…</p>
+            </div>
+          </fieldset>
+          <div id="wmsAccountNotice" class="wms-account-notice" aria-live="polite" hidden></div>
+          <div class="wms-account-actions">
+            <button id="wmsAccountSubmit" type="submit" disabled>确认并打印</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="wmsAccountRecordsModal" class="modal-layer wms-account-records-layer" hidden>
+      <div class="modal-card wms-account-records-card" role="dialog" aria-modal="true" aria-labelledby="wmsAccountRecordsTitle">
+        <div class="modal-head">
+          <div>
+            <h3 id="wmsAccountRecordsTitle">账号创建记录</h3>
+            <p id="wmsAccountRecordsMeta">正在读取已保存的创建记录…</p>
+          </div>
+          <div class="wms-account-head-actions">
+            <button id="wmsAccountRecordsRefresh" class="secondary-action" type="button">刷新</button>
+            <button id="wmsAccountRecordsClose" class="icon-button" type="button" aria-label="关闭">×</button>
+          </div>
+        </div>
+        <div id="wmsAccountRecordsContent" class="wms-account-records-content" aria-live="polite">
+          <p class="wms-account-records-status">正在读取已保存的创建记录…</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="releaseAssistantPackingDetailModal" class="modal-layer release-assistant-packing-detail-layer" hidden>
+      <div class="modal-card release-assistant-packing-detail-card" role="dialog" aria-modal="true" aria-labelledby="releaseAssistantPackingDetailTitle">
+        <div class="modal-head">
+          <div>
+            <h3 id="releaseAssistantPackingDetailTitle">打包中人员明细</h3>
+            <p id="releaseAssistantPackingDetailMeta">WMS 出库复核 · 处理中</p>
+          </div>
+          <button id="releaseAssistantPackingDetailClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <div id="releaseAssistantPackingDetailContent" class="release-assistant-packing-detail-content"></div>
+      </div>
+    </div>
+
+    <section
+      id="releaseAssistantAssignPickerPanel"
+      class="release-assistant-assign-picker-panel"
+      role="dialog"
+      aria-modal="false"
+      aria-label="指定拣选人"
+      hidden
+    ></section>
+
+    <section
+      id="releaseAssistantNextShiftPickerFloat"
+      class="release-assistant-next-shift-picker-float"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="releaseAssistantNextShiftPickerFloatTitle"
+      hidden
+    >
+      <header id="releaseAssistantNextShiftPickerFloatHeader" class="release-assistant-next-shift-picker-float-head">
+        <div>
+          <h3 id="releaseAssistantNextShiftPickerFloatTitle">指定下个班次拣选人</h3>
+          <p id="releaseAssistantNextShiftPickerFloatMeta">已选择 0 条拣选单 · 当前人员 未选择</p>
+        </div>
+        <button id="releaseAssistantNextShiftPickerFloatClose" class="icon-button" type="button" aria-label="关闭">×</button>
+      </header>
+      <div class="release-assistant-next-shift-picker-float-toolbar">
+        <strong id="releaseAssistantNextShiftPickerFloatSelectedCount">待分配 0 条</strong>
+        <div>
+          <button id="releaseAssistantNextShiftPickerFloatSubmit" type="button" disabled>分配</button>
+        </div>
+      </div>
+      <div id="releaseAssistantNextShiftPickerFloatNotice" class="release-assistant-next-shift-picker-float-notice" hidden></div>
+      <div id="releaseAssistantNextShiftPickerFloatList" class="release-assistant-next-shift-picker-float-list"></div>
+      <footer>选择人员后，点击“分配”直接写入 WMS</footer>
+    </section>
+
+    <div id="releaseAssistantNextShiftRosterModal" class="modal-layer release-assistant-next-shift-roster-layer" hidden>
+      <div class="modal-card release-assistant-next-shift-roster-card" role="dialog" aria-modal="true" aria-labelledby="releaseAssistantNextShiftRosterTitle">
+        <div class="modal-head">
+          <div>
+            <h3 id="releaseAssistantNextShiftRosterTitle">下个班次拣选人名单</h3>
+            <p id="releaseAssistantNextShiftRosterCount">0 人</p>
+          </div>
+          <button id="releaseAssistantNextShiftRosterClose" class="icon-button" type="button" aria-label="关闭保存">×</button>
+        </div>
+        <div class="release-assistant-next-shift-roster-body">
+          <div
+            id="releaseAssistantNextShiftRosterCards"
+            class="release-assistant-next-shift-roster-cards"
+            aria-label="下个班次人员状态"
+            aria-live="polite"
+          ></div>
+          <div class="release-assistant-next-shift-roster-off-bar">
+            <strong id="releaseAssistantNextShiftRosterSelectedCount">已选择 0 人</strong>
+            <div class="release-assistant-next-shift-roster-off-actions">
+              <button id="releaseAssistantNextShiftRosterCancelAllOff" class="is-cancel-all" type="button" disabled>全部取消</button>
+              <button id="releaseAssistantNextShiftRosterOff" type="button" disabled>OFF</button>
+            </div>
+          </div>
+          <label class="release-assistant-next-shift-roster-editor-label" for="releaseAssistantNextShiftRosterText">名单编辑（每行一人）</label>
+          <textarea id="releaseAssistantNextShiftRosterText" spellcheck="false" aria-label="下个班次拣选人名单"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button id="releaseAssistantNextShiftRosterAddLine" class="secondary-action" type="button">新增空行</button>
+          <button id="releaseAssistantNextShiftRosterSaveClose" class="primary-action" type="button">关闭保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="barcodeGeneratorModal" class="modal-layer barcode-generator-layer" hidden>
+      <div class="modal-card barcode-generator-card" role="dialog" aria-modal="true" aria-labelledby="barcodeGeneratorTitle">
+        <div class="modal-head">
+          <div>
+            <h3 id="barcodeGeneratorTitle">生成条码</h3>
+            <p>4 × 6 英寸横版 · Code 128</p>
+          </div>
+          <button id="barcodeGeneratorClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="barcode-generator-body">
+          <section class="barcode-generator-controls">
+            <label for="barcodeGeneratorInput">条码内容</label>
+            <textarea id="barcodeGeneratorInput" rows="5" maxlength="120" placeholder="输入需要生成条码的内容" spellcheck="false"></textarea>
+            <fieldset>
+              <legend>打印数量</legend>
+              <div id="barcodeGeneratorQuickQuantity" class="barcode-generator-quick-quantity">
+                <button type="button" data-barcode-quantity="1" class="is-selected">1</button>
+                <button type="button" data-barcode-quantity="2">2</button>
+                <button type="button" data-barcode-quantity="3">3</button>
+                <button type="button" data-barcode-quantity="4">4</button>
+                <button type="button" data-barcode-quantity="5">5</button>
+              </div>
+              <label class="barcode-generator-custom-quantity">
+                <span>大于 5 的数量（输入后按回车确认）</span>
+                <input id="barcodeGeneratorCustomQuantity" type="number" min="6" max="500" step="1" inputmode="numeric" placeholder="6–500">
+              </label>
+              <p id="barcodeGeneratorQuantityStatus">已确认：1 份</p>
+            </fieldset>
+            <div id="barcodeGeneratorNotice" class="barcode-generator-notice" aria-live="polite"></div>
+            <button id="barcodeGeneratorPrint" class="primary-action barcode-generator-print" type="button" disabled>打印</button>
+          </section>
+          <section class="barcode-generator-preview-panel">
+            <strong>打印预览</strong>
+            <div id="barcodeGeneratorPreview" class="barcode-generator-preview">
+              <span>输入内容后显示条码</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="qrPreviewModal" class="qr-preview-layer" hidden>
+      <div id="qrPreviewCard" class="qr-preview-card" role="dialog" aria-modal="true" aria-label="二维码预览">
+        <button id="qrPreviewClose" class="qr-preview-close" type="button" aria-label="关闭">×</button>
+        <button id="qrPreviewPrint" class="qr-preview-print" type="button">打印</button>
+        <div id="qrPreviewContent"></div>
+      </div>
+    </div>
+
+    <div id="exceptionShiftSettingsModal" class="modal-layer" hidden>
+      <div class="modal-card exception-shift-settings-card">
+        <div class="modal-head">
+          <div>
+            <h3>班次设置</h3>
+            <p>设置后，横版明细按这里的时间范围过滤</p>
+          </div>
+        </div>
+        <div class="exception-shift-settings-body">
+          <section class="exception-shift-settings-section">
+            <strong>白班</strong>
+            <label>
+              <span>开始时间</span>
+              <input id="exceptionDayStartTime" type="time">
+            </label>
+            <label>
+              <span>结束时间</span>
+              <input id="exceptionDayEndTime" type="time">
+            </label>
+          </section>
+          <section class="exception-shift-settings-section">
+            <strong>夜班</strong>
+            <label>
+              <span>开始时间</span>
+              <input id="exceptionNightStartTime" type="time">
+            </label>
+            <label>
+              <span>结束时间</span>
+              <input id="exceptionNightEndTime" type="time">
+            </label>
+          </section>
+        </div>
+        <div class="modal-actions">
+          <button id="exceptionShiftSettingsCancel" class="secondary-action" type="button">取消</button>
+          <button id="exceptionShiftSettingsSave" class="primary-action" type="button">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="henryLabelEditModal" class="modal-layer" hidden>
+      <div class="modal-card henry-label-edit-card" role="dialog" aria-modal="true" aria-label="编辑 Label to Henry 打印文字">
+        <div class="modal-head">
+          <div>
+            <h3>编辑打印文字</h3>
+            <p>只修改 Label to Henry 打印的大字，二维码和 SKU 不变</p>
+          </div>
+        </div>
+        <label class="henry-label-edit-field" for="henryLabelEditInput">
+          <span>打印文字</span>
+          <input id="henryLabelEditInput" type="text" autocomplete="off" spellcheck="false">
+        </label>
+        <div class="modal-actions">
+          <button id="henryLabelEditCancel" class="secondary-action" type="button">取消</button>
+          <button id="henryLabelEditSave" class="primary-action" type="button">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="exceptionDetailModal" class="modal-layer exception-detail-layer" hidden>
+      <div class="modal-card exception-detail-card">
+        <div class="exception-detail-layout">
+          <aside class="exception-detail-modal-actions">
+            <button id="exceptionDetailExport" class="secondary-action" type="button">导出</button>
+            <button id="exceptionDetailClose" class="secondary-action" type="button">关闭</button>
+          </aside>
+          <section class="exception-detail-main">
+            <div class="exception-detail-modal-head">
+              <div class="exception-detail-title-row">
+                <h3 id="exceptionDetailTitle">明细</h3>
+                <button id="exceptionDetailSelectAll" class="secondary-action exception-detail-select-all" type="button" hidden disabled>全选</button>
+                <button id="exceptionDetailBatchDamage" class="primary-action exception-detail-batch-damage" type="button" hidden disabled>批量转残</button>
+              </div>
+              <p id="exceptionDetailMeta"></p>
+            </div>
+            <div id="exceptionDetailContent" class="exception-detail-modal-content"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="nightRosterModal" class="modal-layer" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h3>本班次名单更新</h3>
+            <p id="nightRosterCount">0 人</p>
+          </div>
+          <button id="nightRosterClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <textarea id="nightRosterText" spellcheck="false"></textarea>
+        <div class="modal-actions">
+          <button id="nightRosterAddLine" class="secondary-action" type="button">新增空行</button>
+          <button id="nightRosterSaveClose" class="primary-action" type="button">关闭保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="emptyLocationZoneModal" class="modal-layer" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h3>库区更新</h3>
+            <p id="emptyLocationZoneCount">0 个</p>
+          </div>
+          <button id="emptyLocationZoneClose" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <textarea id="emptyLocationZoneText" spellcheck="false"></textarea>
+        <div class="modal-actions">
+          <button id="emptyLocationZoneAddLine" class="secondary-action" type="button">新增空行</button>
+          <button id="emptyLocationZoneSaveClose" class="primary-action" type="button">关闭保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="requestWaitingOverlay" class="request-waiting-overlay" hidden aria-live="polite" aria-label="正在等待查询结果">
+      <div class="request-waiting-card" role="status">
+        <img src="./assets/query-waiting.gif" alt="" width="75" height="128">
+        <span>正在等待结果…</span>
+      </div>
+    </div>
+
+    <script src="./i18n-en-core.js?v=1.1.383"></script>
+    <script src="./i18n-en-mid.js?v=1.1.383"></script>
+    <script src="./i18n-en-late.js?v=1.1.383"></script>
+    <script src="./i18n-en-templates.js?v=1.1.383"></script>
+    <script src="./i18n.js?v=1.1.383"></script>
+    <script src="./app.js?v=1.1.392"></script>
+  </body>
+</html>
