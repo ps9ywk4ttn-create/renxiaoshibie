@@ -144,8 +144,16 @@ jobs:
           $candidateHash = (Get-FileHash setup.exe -Algorithm SHA256).Hash
           $downloadHash = (Get-FileHash $downloadedInstaller -Algorithm SHA256).Hash
           if ($downloadHash -ne $candidateHash) { throw 'Updater downloaded different installer bytes' }
-          $result = Start-Process $downloadedInstaller -ArgumentList '/S','/UPDATE' -Wait -PassThru
-          if ($result.ExitCode -ne 0) { throw "Upgrade exited with $($result.ExitCode)" }
+          $upgrade = Start-Process $downloadedInstaller -ArgumentList '/S','/UPDATE' -PassThru
+          Start-Sleep -Milliseconds 500
+          Get-CimInstance Win32_Process |
+            Where-Object { $_.Name -eq '实时人效看板.exe' } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          if (-not $upgrade.WaitForExit(120000)) {
+            Stop-Process -Id $upgrade.Id -Force -ErrorAction SilentlyContinue
+            throw 'Upgrade installer did not finish within 120 seconds'
+          }
+          if ($upgrade.ExitCode -ne 0) { throw "Upgrade exited with $($upgrade.ExitCode)" }
           if ((Get-Content $sentinel -Raw) -ne 'preserve-me') { throw 'Upgrade did not preserve user data' }
           Start-Sleep -Seconds 8
           $running = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq '实时人效看板.exe' }
