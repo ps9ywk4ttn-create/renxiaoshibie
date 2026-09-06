@@ -114,9 +114,10 @@ jobs:
               throw new Error(`Updater selected unexpected version ${checked.manifest.version}`);
             }
             await downloadUpdateInstaller(checked.manifest, process.env.UPDATE_DESTINATION);
+            process.exit(0);
           })().catch((error) => {
             console.error(error.stack || error.message || error);
-            process.exitCode = 1;
+            process.exit(1);
           });
           '@ | Set-Content $script -Encoding utf8
           $env:ELECTRON_RUN_AS_NODE = '1'
