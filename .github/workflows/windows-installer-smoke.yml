@@ -1,0 +1,187 @@
+name: Windows installer smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: GitHub Release tag containing the candidate installer
+        required: true
+        type: string
+      version:
+        description: Expected dashboard version without the v prefix
+        required: true
+        type: string
+      previous_tag:
+        description: Previously published Windows release used to exercise the updater
+        required: true
+        default: windows-v1.1.407
+        type: string
+      previous_version:
+        description: Previously published version without the v prefix
+        required: true
+        default: 1.1.407
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  install-upgrade-and-runtime:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download candidate and previous installers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/${{ inputs.tag }}"
+          Invoke-WebRequest "$base/Realtime-Efficiency-Dashboard-Setup.exe" -OutFile setup.exe
+          Invoke-WebRequest "$base/Realtime-Efficiency-Dashboard-Setup.exe.sha256" -OutFile setup.exe.sha256
+          Invoke-WebRequest "$base/windows-update.json" -OutFile windows-update.json
+          $previousBase = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/${{ inputs.previous_tag }}"
+          Invoke-WebRequest "$previousBase/Realtime-Efficiency-Dashboard-Setup.exe" -OutFile previous-setup.exe
+          $expected = (Get-Content setup.exe.sha256 -Raw).Trim().Split()[0].ToLowerInvariant()
+          $actual = (Get-FileHash setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Installer SHA-256 mismatch" }
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path setup.exe))
+          if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a) {
+            throw "Installer is not a Windows PE file"
+          }
+          $manifest = Get-Content windows-update.json -Raw | ConvertFrom-Json
+          if ($manifest.version -ne '${{ inputs.version }}') { throw "Candidate manifest version mismatch" }
+          if ($manifest.sha256 -ne $actual) { throw "Candidate manifest SHA-256 mismatch" }
+          if ([int64]$manifest.size -ne (Get-Item setup.exe).Length) { throw "Candidate manifest size mismatch" }
+          if ($manifest.downloadUrl -ne "$base/Realtime-Efficiency-Dashboard-Setup.exe") {
+            throw "Candidate manifest does not point to the candidate release"
+          }
+
+      - name: Install previous release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = (Resolve-Path previous-setup.exe).Path
+          $result = Start-Process $installer -ArgumentList '/S' -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Installer exited with $($result.ExitCode)" }
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs\RealtimeEfficiencyDashboard'
+          $dashboard = Join-Path $installDir 'resources\dashboard'
+          $version = (Get-Content (Join-Path $dashboard 'VERSION') -Raw).Trim()
+          if ($version -ne 'v${{ inputs.previous_version }}') { throw "Unexpected previous version: $version" }
+
+      - name: Launch previous release and verify local service
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs\RealtimeEfficiencyDashboard'
+          $exe = Join-Path $installDir '实时人效看板.exe'
+          $process = Start-Process $exe -ArgumentList '--disable-gpu' -PassThru
+          Start-Sleep -Seconds 15
+          $process.Refresh()
+          if ($process.HasExited) {
+            $shellLog = Join-Path $env:LOCALAPPDATA '实时人效看板\.electron-shell.log'
+            $serverLog = Join-Path $env:LOCALAPPDATA '实时人效看板\dashboard\.server.log'
+            if (Test-Path $shellLog) { Get-Content $shellLog }
+            if (Test-Path $serverLog) { Get-Content $serverLog }
+            throw "Application exited during startup with $($process.ExitCode)"
+          }
+          $serverLog = Join-Path $env:LOCALAPPDATA '实时人效看板\dashboard\.server.log'
+          if (-not (Test-Path $serverLog)) { throw 'Dashboard server log was not created' }
+          if ((Get-Content $serverLog -Raw) -notmatch '127\.0\.0\.1') {
+            throw 'Dashboard local service did not report a listening address'
+          }
+
+      - name: Exercise updater download, upgrade, persistence, and restart
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs\RealtimeEfficiencyDashboard'
+          $exe = Join-Path $installDir '实时人效看板.exe'
+          $updaterModule = Join-Path $installDir 'resources\app\app-updater.cjs'
+          $dataDir = Join-Path $env:LOCALAPPDATA '实时人效看板\dashboard'
+          New-Item -ItemType Directory -Force $dataDir | Out-Null
+          $sentinel = Join-Path $dataDir 'windows-upgrade-sentinel.txt'
+          Set-Content $sentinel 'preserve-me' -NoNewline
+          $downloadedInstaller = Join-Path $env:RUNNER_TEMP 'verified-update.exe'
+          $script = Join-Path $env:RUNNER_TEMP 'exercise-updater.cjs'
+          @'
+          const { checkForAppUpdate, downloadUpdateInstaller } = require(process.env.UPDATER_MODULE);
+          (async () => {
+            const checked = await checkForAppUpdate(
+              process.env.PREVIOUS_VERSION,
+              process.env.CANDIDATE_MANIFEST_URL,
+            );
+            if (!checked.updateAvailable) throw new Error('Updater did not detect the candidate release');
+            if (checked.manifest.version !== process.env.CANDIDATE_VERSION) {
+              throw new Error(`Updater selected unexpected version ${checked.manifest.version}`);
+            }
+            await downloadUpdateInstaller(checked.manifest, process.env.UPDATE_DESTINATION);
+          })().catch((error) => {
+            console.error(error.stack || error.message || error);
+            process.exitCode = 1;
+          });
+          '@ | Set-Content $script -Encoding utf8
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $env:UPDATER_MODULE = $updaterModule
+          $env:PREVIOUS_VERSION = '${{ inputs.previous_version }}'
+          $env:CANDIDATE_VERSION = '${{ inputs.version }}'
+          $env:CANDIDATE_MANIFEST_URL = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/${{ inputs.tag }}/windows-update.json"
+          $env:UPDATE_DESTINATION = $downloadedInstaller
+          & $exe $script
+          if ($LASTEXITCODE -ne 0) { throw "Packaged updater failed with $LASTEXITCODE" }
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
+          Remove-Item Env:UPDATER_MODULE
+          Remove-Item Env:PREVIOUS_VERSION
+          Remove-Item Env:CANDIDATE_VERSION
+          Remove-Item Env:CANDIDATE_MANIFEST_URL
+          Remove-Item Env:UPDATE_DESTINATION
+          $candidateHash = (Get-FileHash setup.exe -Algorithm SHA256).Hash
+          $downloadHash = (Get-FileHash $downloadedInstaller -Algorithm SHA256).Hash
+          if ($downloadHash -ne $candidateHash) { throw 'Updater downloaded different installer bytes' }
+          $result = Start-Process $downloadedInstaller -ArgumentList '/S','/UPDATE' -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Upgrade exited with $($result.ExitCode)" }
+          if ((Get-Content $sentinel -Raw) -ne 'preserve-me') { throw 'Upgrade did not preserve user data' }
+          Start-Sleep -Seconds 8
+          $running = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq '实时人效看板.exe' }
+          if (-not $running) { throw 'Upgrade did not restart the application' }
+
+      - name: Verify updated package and transfer workflow
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs\RealtimeEfficiencyDashboard'
+          $exe = Join-Path $installDir '实时人效看板.exe'
+          $dashboard = Join-Path $installDir 'resources\dashboard'
+          $required = @(
+            $exe,
+            (Join-Path $dashboard 'app\app.js'),
+            (Join-Path $dashboard 'tools\attribute_change_workflow.mjs'),
+            (Join-Path $dashboard 'tools\wms_export_server.mjs'),
+            (Join-Path $dashboard 'tools\windows_attribute_change_route_test.mjs'),
+            (Join-Path $installDir 'resources\app\app-updater.cjs')
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path $file -PathType Leaf)) { throw "Missing packaged file: $file" }
+          }
+          $version = (Get-Content (Join-Path $dashboard 'VERSION') -Raw).Trim()
+          if ($version -ne 'v${{ inputs.version }}') { throw "Unexpected updated version: $version" }
+          $workflow = Get-Content (Join-Path $dashboard 'tools\attribute_change_workflow.mjs') -Raw
+          if ($workflow -notmatch 'MAX_ATTRIBUTE_CHANGE_ALLOCATE_ATTEMPTS = 6') {
+            throw 'Packaged attribute-change recovery logic is missing'
+          }
+          if ($workflow -match 'owner_id_str: detailOwnerId') {
+            throw 'Packaged attribute-change request still contains the obsolete detail owner field'
+          }
+          $appJs = Get-Content (Join-Path $dashboard 'app\app.js') -Raw
+          $preload = Get-Content (Join-Path $installDir 'resources\app\preload.cjs') -Raw
+          $main = Get-Content (Join-Path $installDir 'resources\app\main.cjs') -Raw
+          if ($appJs -notmatch 'window\.realtimeDesktop\.updateApp\(\)') {
+            throw 'Automatic-update button is not wired to the desktop updater'
+          }
+          if ($preload -notmatch 'desktop:update-app' -or $main -notmatch 'desktop:update-app') {
+            throw 'Automatic-update IPC contract is incomplete'
+          }
+          taskkill /IM '实时人效看板.exe' /T /F | Out-Null
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $test = Join-Path $dashboard 'tools\windows_attribute_change_route_test.mjs'
+          & $exe $test
+          if ($LASTEXITCODE -ne 0) { throw "Packaged transfer workflow failed with $LASTEXITCODE" }
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
