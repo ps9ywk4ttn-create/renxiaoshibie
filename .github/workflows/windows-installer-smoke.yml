@@ -113,27 +113,29 @@ jobs:
             if (checked.manifest.version !== process.env.CANDIDATE_VERSION) {
               throw new Error(`Updater selected unexpected version ${checked.manifest.version}`);
             }
-            await downloadUpdateInstaller(checked.manifest, process.env.UPDATE_DESTINATION);
+            let reported = -10;
+            await downloadUpdateInstaller(checked.manifest, process.env.UPDATE_DESTINATION, {
+              onProgress({ received, total }) {
+                const percent = total > 0 ? Math.floor((received / total) * 100) : 0;
+                if (percent >= reported + 10) {
+                  reported = percent;
+                  console.log(`Updater download ${percent}%`);
+                }
+              },
+            });
             process.exit(0);
           })().catch((error) => {
             console.error(error.stack || error.message || error);
             process.exit(1);
           });
           '@ | Set-Content $script -Encoding utf8
-          $env:ELECTRON_RUN_AS_NODE = '1'
           $env:UPDATER_MODULE = $updaterModule
           $env:PREVIOUS_VERSION = '${{ inputs.previous_version }}'
           $env:CANDIDATE_VERSION = '${{ inputs.version }}'
           $env:CANDIDATE_MANIFEST_URL = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/${{ inputs.tag }}/windows-update.json"
           $env:UPDATE_DESTINATION = $downloadedInstaller
-          $updaterStdout = Join-Path $env:RUNNER_TEMP 'updater-stdout.log'
-          $updaterStderr = Join-Path $env:RUNNER_TEMP 'updater-stderr.log'
-          $nodeRun = Start-Process $exe -ArgumentList "`"$script`"" -Wait -PassThru `
-            -RedirectStandardOutput $updaterStdout -RedirectStandardError $updaterStderr
-          if (Test-Path $updaterStdout) { Get-Content $updaterStdout }
-          if (Test-Path $updaterStderr) { Get-Content $updaterStderr }
-          if ($nodeRun.ExitCode -ne 0) { throw "Packaged updater failed with $($nodeRun.ExitCode)" }
-          Remove-Item Env:ELECTRON_RUN_AS_NODE
+          node $script
+          if ($LASTEXITCODE -ne 0) { throw "Packaged updater failed with $LASTEXITCODE" }
           Remove-Item Env:UPDATER_MODULE
           Remove-Item Env:PREVIOUS_VERSION
           Remove-Item Env:CANDIDATE_VERSION
