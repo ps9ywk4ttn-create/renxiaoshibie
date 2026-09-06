@@ -172,6 +172,7 @@ jobs:
             (Join-Path $dashboard 'tools\attribute_change_workflow.mjs'),
             (Join-Path $dashboard 'tools\wms_export_server.mjs'),
             (Join-Path $dashboard 'tools\windows_attribute_change_route_test.mjs'),
+            (Join-Path $dashboard 'tools\windows_status_refresh_route_test.mjs'),
             (Join-Path $installDir 'resources\app\app-updater.cjs')
           )
           foreach ($file in $required) {
@@ -205,4 +206,12 @@ jobs:
           if (Test-Path $testStdout) { Get-Content $testStdout }
           if (Test-Path $testStderr) { Get-Content $testStderr }
           if ($testRun.ExitCode -ne 0) { throw "Packaged transfer workflow failed with $($testRun.ExitCode)" }
+          $statusTest = Join-Path $dashboard 'tools\windows_status_refresh_route_test.mjs'
+          $statusStdout = Join-Path $env:RUNNER_TEMP 'status-refresh-test-stdout.log'
+          $statusStderr = Join-Path $env:RUNNER_TEMP 'status-refresh-test-stderr.log'
+          $statusRun = Start-Process $exe -ArgumentList "`"$statusTest`"" -Wait -PassThru `
+            -RedirectStandardOutput $statusStdout -RedirectStandardError $statusStderr
+          if (Test-Path $statusStdout) { Get-Content $statusStdout }
+          if (Test-Path $statusStderr) { Get-Content $statusStderr }
+          if ($statusRun.ExitCode -ne 0) { throw "Packaged status refresh workflow failed with $($statusRun.ExitCode)" }
           Remove-Item Env:ELECTRON_RUN_AS_NODE
