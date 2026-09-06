@@ -125,8 +125,13 @@ jobs:
           $env:CANDIDATE_VERSION = '${{ inputs.version }}'
           $env:CANDIDATE_MANIFEST_URL = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/${{ inputs.tag }}/windows-update.json"
           $env:UPDATE_DESTINATION = $downloadedInstaller
-          & $exe $script
-          if ($LASTEXITCODE -ne 0) { throw "Packaged updater failed with $LASTEXITCODE" }
+          $updaterStdout = Join-Path $env:RUNNER_TEMP 'updater-stdout.log'
+          $updaterStderr = Join-Path $env:RUNNER_TEMP 'updater-stderr.log'
+          $nodeRun = Start-Process $exe -ArgumentList "`"$script`"" -Wait -PassThru `
+            -RedirectStandardOutput $updaterStdout -RedirectStandardError $updaterStderr
+          if (Test-Path $updaterStdout) { Get-Content $updaterStdout }
+          if (Test-Path $updaterStderr) { Get-Content $updaterStderr }
+          if ($nodeRun.ExitCode -ne 0) { throw "Packaged updater failed with $($nodeRun.ExitCode)" }
           Remove-Item Env:ELECTRON_RUN_AS_NODE
           Remove-Item Env:UPDATER_MODULE
           Remove-Item Env:PREVIOUS_VERSION
@@ -182,6 +187,11 @@ jobs:
           taskkill /IM '实时人效看板.exe' /T /F | Out-Null
           $env:ELECTRON_RUN_AS_NODE = '1'
           $test = Join-Path $dashboard 'tools\windows_attribute_change_route_test.mjs'
-          & $exe $test
-          if ($LASTEXITCODE -ne 0) { throw "Packaged transfer workflow failed with $LASTEXITCODE" }
+          $testStdout = Join-Path $env:RUNNER_TEMP 'transfer-test-stdout.log'
+          $testStderr = Join-Path $env:RUNNER_TEMP 'transfer-test-stderr.log'
+          $testRun = Start-Process $exe -ArgumentList "`"$test`"" -Wait -PassThru `
+            -RedirectStandardOutput $testStdout -RedirectStandardError $testStderr
+          if (Test-Path $testStdout) { Get-Content $testStdout }
+          if (Test-Path $testStderr) { Get-Content $testStderr }
+          if ($testRun.ExitCode -ne 0) { throw "Packaged transfer workflow failed with $($testRun.ExitCode)" }
           Remove-Item Env:ELECTRON_RUN_AS_NODE
